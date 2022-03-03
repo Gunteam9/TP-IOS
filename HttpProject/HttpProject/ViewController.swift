@@ -6,19 +6,57 @@
 //
 
 import UIKit
+import Alamofire
 
-class ViewController: UIViewController {
+class ViewController: UIViewController, UITableViewDelegate {
+    
+    @IBOutlet weak var tableView: UITableView!
 
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        Task.init {
-            await getTextFromURL(url: "https://eddbali.net/files/texte.txt");
-            // Un autre URL que la météo pour éviter de créer un compte sur un site random
-            await getJsonFromURL(url: "https://jsonplaceholder.typicode.com/todos/1");
-        }
-        
+        tableView.dataSource = self
+        tableView.delegate = self
     }
+}
+
+extension ViewController: UITableViewDataSource {
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return TodoService.todos.count;
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "TodoCell", for: indexPath) as! TodoViewCell;
+        let todo = TodoService.todos[indexPath.row];
+        
+        print("here");
+        cell.idLabel?.text = todo.id.description;
+        cell.taskLabel?.text = todo.title;
+        cell.IsCompleted?.setOn(todo.completed, animated: false);
+
+        return cell;
+    }
+    
+}
+
+// Les Runtime Exception n'existe pas vraiment en swift
+enum RuntimeException: Error {
+    case runtimeError(String)
+}
+
+class TodoService {
+    private(set) public static var todos = [JsonPlaceHolderTodoOne]();
+    
+    init() {
+        for i in 1...10 {
+            Task.init {
+                let cell = await getJsonFromURL(url: "https://jsonplaceholder.typicode.com/todos/\(i)");
+                TodoService.todos.append(cell as! JsonPlaceHolderTodoOne);
+            }
+        }
+    }
+    
+    
     
     func getTextFromURL(url: String) async {
         let data: Data? = await executeRequest(urlString: url);
@@ -28,7 +66,7 @@ class ViewController: UIViewController {
         }
     }
     
-    func getJsonFromURL(url: String) async {
+    func getJsonFromURL(url: String) async -> Any? {
         // On execute la requête puis on print les données en brut
         let data: Data? = await executeRequest(urlString: url);
         print(String(data: data!, encoding: .utf8)!);
@@ -38,11 +76,14 @@ class ViewController: UIViewController {
                 // On décode le Json pour le lire facilement
                 let todoOne = try jsonDecoder.decode(JsonPlaceHolderTodoOne.self, from: data!);
                 print(todoOne.description);
+                return todoOne;
             } catch {
                 print(error);
             }
         }
+        return nil;
     }
+    
     
     func executeRequest(urlString: String) async -> Data? {
         // Créer l'URL d'où viennent les données
@@ -64,11 +105,6 @@ class ViewController: UIViewController {
         
         return nil;
     }
-}
-
-// Les Runtime Exception n'existe pas vraiment en swift
-enum RuntimeException: Error {
-    case runtimeError(String)
 }
     
 class JsonPlaceHolderTodoOne: Decodable, CustomStringConvertible {
