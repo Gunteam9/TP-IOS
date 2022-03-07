@@ -13,23 +13,27 @@ class ViewController: UIViewController, UITableViewDelegate {
     @IBOutlet weak var tableView: UITableView!
 
     override func viewDidLoad() {
-        super.viewDidLoad()
+        super.viewDidLoad();
         
-        tableView.dataSource = self
-        tableView.delegate = self
+        tableView.dataSource = self;
+        tableView.delegate = self;
+        
+        let todoDispatchGroup = TodoService.getInstance().todoDispatchGroup;
+        todoDispatchGroup.notify(queue: .main) {
+            self.tableView.reloadData();
+        }
     }
 }
 
 extension ViewController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return TodoService.todos.count;
+        return TodoService.getInstance().todos.count;
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "TodoCell", for: indexPath) as! TodoViewCell;
-        let todo = TodoService.todos[indexPath.row];
+        let todo = TodoService.getInstance().todos[indexPath.row];
         
-        print("here");
         cell.idLabel?.text = todo.id.description;
         cell.taskLabel?.text = todo.title;
         cell.IsCompleted?.setOn(todo.completed, animated: false);
@@ -45,13 +49,18 @@ enum RuntimeException: Error {
 }
 
 class TodoService {
-    private(set) public static var todos = [JsonPlaceHolderTodoOne]();
+    private static var instance = TodoService();
+    
+    private(set) public var todos = [JsonPlaceHolderTodoOne]();
+    public let todoDispatchGroup = DispatchGroup();
     
     init() {
         for i in 1...10 {
             Task.init {
+                todoDispatchGroup.enter();
                 let cell = await getJsonFromURL(url: "https://jsonplaceholder.typicode.com/todos/\(i)");
-                TodoService.todos.append(cell as! JsonPlaceHolderTodoOne);
+                todos.append(cell as! JsonPlaceHolderTodoOne);
+                todoDispatchGroup.leave();
             }
         }
     }
@@ -69,13 +78,11 @@ class TodoService {
     func getJsonFromURL(url: String) async -> Any? {
         // On execute la requête puis on print les données en brut
         let data: Data? = await executeRequest(urlString: url);
-        print(String(data: data!, encoding: .utf8)!);
         if data != nil {
             let jsonDecoder = JSONDecoder();
             do {
                 // On décode le Json pour le lire facilement
                 let todoOne = try jsonDecoder.decode(JsonPlaceHolderTodoOne.self, from: data!);
-                print(todoOne.description);
                 return todoOne;
             } catch {
                 print(error);
@@ -104,6 +111,10 @@ class TodoService {
         }
         
         return nil;
+    }
+    
+    public static func getInstance() -> TodoService {
+        return TodoService.instance;
     }
 }
     
